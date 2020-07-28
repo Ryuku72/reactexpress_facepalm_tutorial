@@ -1,18 +1,20 @@
 const express = require('express');
 const passport = require('./../../../config/passport');
 const validator = require('validator');
+const User = require('./../../../models/User');
 
 const router = express.Router();
 
 router.post('/register', (req, res, next) => {
   const validationErrors = [];
-  if (!validator.isEmail(req.body.email))
+  // validator is expecting a string
+  if (!validator.isEmail(req.body.email || ''))
       validationErrors.push({ msg: "Please enter a valid email address." });
-  if (!validator.isLength(req.body.password, { min: 8 }))
+  if (!validator.isLength(req.body.password || '', { min: 8 }))
       validationErrors.push({
           msg: "Password must be at least 8 characters long",
       });
-  if (req.body.password !== req.body.confirmPassword)
+  if (req.body.password !== req.body.password_again)
       validationErrors.push({ msg: "Passwords do not match" });
 
   if (validationErrors.length) {
@@ -34,12 +36,14 @@ router.post('/register', (req, res, next) => {
           return next(err);
       }
       if (existingUser) {
-          req.flash("errors", {
-              msg: "Account with that email address already exists.",
-          });
+          
           return res.status(422).json({
-              errors: msg
-          })
+              errors: [
+                  {
+                      msg: "Account with that email address already exists.",
+                  },
+              ],
+          });
       }
       user.save((err) => {
           if (err) {
@@ -59,24 +63,44 @@ router.post('/register', (req, res, next) => {
 
 })
 
-router.post('/login', (req, res, next) => {
+router.post('/login',  (req, res, next) => {
+
+
+    // res.json({
+    //     data: req.user
+    // })
+
     passport.authenticate('local', (err, user, info) => {
+        console.log({err});
         if (err) {
             return next(err);
         }
         if (!user) {
-            console.log({info});
             return res.status(422).json({
-                data: info.msg
+                errors: [
+                    {
+                        msg: info.msg,
+                    },
+                ],
             });
         }
-        res.json({
-            data: user
-        });
+        console.log({user});
+        req.logIn(user, (err) => {
+            if(err){
+                return res.status(400).json({
+                    errors: [{msg: err}]
+                })
+            }
+            res.json({
+                data: user,
+            });
+        })
+        
     })(req, res, next);
 });
 
-router.post('/logout', (req, res) => {
+router.get('/logout', (req, res) => {
+    console.log('heyyyy');
     req.logout();
     req.session.destroy((err) => {
         if (err){
@@ -96,5 +120,7 @@ router.post('/logout', (req, res) => {
         });
     });
 });
+
+
 
 module.exports = router
